@@ -169,7 +169,7 @@ class DiTModel(nn.Module):
             ]
         )
 
-        self.out = FinalHead(d_model, patch_size, 2 * in_channels)
+        self.out = FinalHead(d_model, patch_size, in_channels)
 
         self.d_time = d_time
 
@@ -203,7 +203,7 @@ class DiTModel(nn.Module):
 
         nn.init.trunc_normal_(self.patchify.pos_emb, std=0.02)
 
-    def forward(self, x: torch.Tensor, time: torch.Tensor):
+    def forward(self, x: torch.Tensor, time: torch.Tensor) -> torch.Tensor:
         time = get_timestep_embedding(time, d_emb=self.d_time)
         t = self.time_mlp(time)
 
@@ -212,15 +212,12 @@ class DiTModel(nn.Module):
         for layer in self.layers:
             x = layer(x, t)
 
-        x = self.out(x, t)
+        v = self.out(x, t)
 
-        mean, log_var = rearrange(
-            x,
-            "b (h w) (r p1 p2 c) -> r b c (h p1) (w p2)",
+        return rearrange(
+            v,
+            "b (h w) (p1 p2 c) -> b c (h p1) (w p2)",
             p1=self.patch_size,
             p2=self.patch_size,
-            r=2,
             h=self.h,
         )
-
-        return mean, log_var
