@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Self
 
 import lightning as L
 import torch
@@ -7,6 +7,7 @@ from torch.optim import AdamW
 
 from micro_dit.model import DiTModel
 from micro_dit.scheduler import DiffusionProcess, extract
+from micro_dit.vqgan import VQGAN
 
 
 class LitDiT(L.LightningModule):
@@ -22,6 +23,7 @@ class LitDiT(L.LightningModule):
         d_head: int,
         d_ff: int,
         ffn_type: Literal["simple", "swiglu"],
+        vqgan_ckpt: str,
         timesteps: int = 1000,
         beta0: float = 1e-4,
         betaT: float = 2e-2,
@@ -45,6 +47,18 @@ class LitDiT(L.LightningModule):
             d_ff,
             ffn_type,
         )
+
+        vqgan = VQGAN.load_from_checkpoint(vqgan_ckpt, map_location="cpu", strict=False)
+
+        self.codebook = vqgan.codebook
+        self.post_quant_conv = vqgan.post_quant_conv
+        self.decoder = vqgan.decoder
+
+        for module in [self.codebook, self.post_quant_conv, self.decoder]:
+            for param in module.parameters():
+                param.requires_grad = False
+
+        del vqgan
 
         self.timesteps = timesteps
 
@@ -126,7 +140,24 @@ class LitDiT(L.LightningModule):
     def forward(self, x: torch.Tensor):
         return self.model(x)
 
-    def training_step(self): ...
+    def training_step(self, batch, batch_idx):
+        indices = batch["indices"]
+
+        x = self.codebook.lookup(indices)
+        b = x.size(0)
+
+        t = torch.randint(0, self.timesteps, (b,), device=x.device).long()
+
+        loss = self.p_losses(x, t)
+
+        self.log("train/loss", loss, on_step=True, on_epoch=False)
+
+    def train(self, mode: bool = True) -> Self:
+        super().train(mode)
+
+        self.codebook.eval()
+        self.post_quant_conv.eval()
+        self.decoder.eval()
 
     def configure_optimizers(self):
         return AdamW(self.model.parameters(), lr=self.lr)
