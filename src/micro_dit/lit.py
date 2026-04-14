@@ -154,7 +154,7 @@ class LitDiT(L.LightningModule):
     def training_step(self, batch, batch_idx):
         indices = batch["indices"]
 
-        x = self.codebook.lookup(indices) / self.latent_scaling
+        x = self.codebook.lookup(indices.long()) / self.latent_scaling
         b = x.size(0)
 
         t = torch.randint(0, self.timesteps, (b,), device=x.device).long()
