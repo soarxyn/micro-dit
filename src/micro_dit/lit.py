@@ -24,6 +24,7 @@ class LitDiT(L.LightningModule):
         d_ff: int,
         ffn_type: Literal["simple", "swiglu"],
         vqgan_ckpt: str,
+        latent_scaling: float,
         timesteps: int = 1000,
         beta0: float = 1e-4,
         betaT: float = 2e-2,
@@ -61,17 +62,24 @@ class LitDiT(L.LightningModule):
         del vqgan
 
         self.timesteps = timesteps
+        self.latent_scaling = latent_scaling
 
         self.diffusion = DiffusionProcess(
             timesteps=timesteps, beta0=beta0, betaT=betaT, s=s, scheduler=scheduler
         )
 
         self.example_input_array = torch.zeros(1, in_channels, image_size, image_size)
+        self.in_channels = in_channels
+        self.image_size = image_size
 
         self.lr = lr
 
     @torch.inference_mode()
-    def p_sample(self, x: torch.Tensor, t_idx: int, clip: bool = True) -> torch.Tensor:
+    def decode(self, x: torch.Tensor) -> torch.Tensor:
+        return self.decoder(self.post_quant_conv(x * self.latent_scaling))
+
+    @torch.inference_mode()
+    def p_sample(self, x: torch.Tensor, t_idx: int) -> torch.Tensor:
         t: torch.Tensor = torch.full(
             (x.shape[0],), t_idx, device=x.device, dtype=torch.long
         )
@@ -82,9 +90,6 @@ class LitDiT(L.LightningModule):
             extract(self.diffusion.sqrt_alpha_cumprod, t, x.shape) * x
             - extract(self.diffusion.sqrt_one_minus_alpha_cumprod, t, x.shape) * v
         )
-
-        if clip:
-            x0 = x0.clamp(-1, 1)
 
         model_mean = (
             extract(self.diffusion.posterior_mean_coef1, t, x.shape) * x0
@@ -103,12 +108,14 @@ class LitDiT(L.LightningModule):
         self,
         shape: tuple[int, ...],
         device: torch.device | str = "cuda",
-        clip: bool = True,
+        noise: torch.Tensor | None = None,
     ):
-        image: torch.Tensor = torch.rand(shape, device=device)
+        image: torch.Tensor = (
+            torch.randn(shape, device=device) if noise is None else noise
+        )
 
         for t in reversed(range(0, self.timesteps)):
-            image = self.p_sample(image, t, clip)
+            image = self.p_sample(image, t)
 
         return image
 
@@ -137,13 +144,10 @@ class LitDiT(L.LightningModule):
 
         return F.mse_loss(v, y)
 
-    def forward(self, x: torch.Tensor):
-        return self.model(x)
-
     def training_step(self, batch, batch_idx):
         indices = batch["indices"]
 
-        x = self.codebook.lookup(indices)
+        x = self.codebook.lookup(indices) / self.latent_scaling
         b = x.size(0)
 
         t = torch.randint(0, self.timesteps, (b,), device=x.device).long()
@@ -152,12 +156,16 @@ class LitDiT(L.LightningModule):
 
         self.log("train/loss", loss, on_step=True, on_epoch=False)
 
+        return loss
+
     def train(self, mode: bool = True) -> Self:
         super().train(mode)
 
         self.codebook.eval()
         self.post_quant_conv.eval()
         self.decoder.eval()
+
+        return self
 
     def configure_optimizers(self):
         return AdamW(self.model.parameters(), lr=self.lr)

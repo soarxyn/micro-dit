@@ -1,0 +1,59 @@
+seed_everything: true
+
+model:
+  hidden_dim: 128
+  z_channels: 256
+  emb_dim: 3
+  codebook_size: 8192
+  in_channels: 3
+  out_channels: 3
+  num_heads: 4
+  head_channels: 64
+  multipliers: [1, 2, 4]
+  attention_levels: [-1]
+  dropout: 0.0
+  lr: 1.0e-5
+  perceptual_weight: 1.0
+  codebook_weight: 1.0
+  discriminator_weight: 0.8
+  discriminator_starting_step: 3000
+  image_size: 256
+
+data:
+  class_path: micro_vqgan.data.CelebADataModule
+  init_args:
+    batch_size: 32
+    num_workers: 4
+    pin_memory: true
+    drop_last: true
+
+trainer:
+  accelerator: gpu
+  devices: 1
+  max_steps: 1000000
+  precision: bf16-mixed
+  log_every_n_steps: 100
+  logger:
+    class_path: lightning.pytorch.loggers.WandbLogger
+    init_args:
+      project: micro-vqgan
+      log_model: false
+  callbacks:
+    - class_path: micro_vqgan.callbacks.SampleCallback
+      init_args:
+        every_n_steps: 5000
+        num_samples: 8
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        dirpath: results
+        monitor: val/nll
+        mode: min
+        save_top_k: 3
+        save_last: true
+        filename: step={step}-val_nll={val/nll:.4f}
+    - class_path: lightning.pytorch.callbacks.RichModelSummary
+      init_args:
+        max_depth: -1
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+      init_args:
+        logging_interval: step
