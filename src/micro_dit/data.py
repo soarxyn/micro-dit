@@ -1,9 +1,10 @@
+import multiprocessing
+
 import lightning as L
 import torch
+from safetensors.torch import safe_open
 from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import v2
-from safetensors.torch import safe_open
-import multiprocessing
 
 multiprocessing.set_start_method("fork")
 
@@ -17,7 +18,8 @@ class LatentDataset(Dataset):
 
     def __getitem__(self, index) -> torch.Tensor:
         indices = self.data.get_slice("indices")[index]
-        return _latent_transforms(indices)
+        indices = _latent_transforms(indices)
+        return indices
 
     def __len__(self):
         return self.num_samples
