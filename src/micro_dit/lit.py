@@ -144,6 +144,12 @@ class LitDiT(L.LightningModule):
 
         return F.mse_loss(v, y)
 
+    def forward(self, x: torch.Tensor):
+        b = x.size(0)
+
+        t = torch.randint(0, self.timesteps, (b,), device=x.device).long()
+        return self.model(x, t)
+
     def training_step(self, batch, batch_idx):
         indices = batch["indices"]
 
