@@ -12,7 +12,7 @@ model:
   d_ff: 3072
   ffn_type: swiglu
   vqgan_ckpt: ${ckpts}/vqgan.ckpt
-  latent_scaling: 1.0
+  latent_scaling: 1.0754
   timesteps: 1000
   scheduler: cosine
   lr: 1.0e-4
