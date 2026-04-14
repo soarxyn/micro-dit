@@ -56,6 +56,7 @@ class LitDiT(L.LightningModule):
         self.decoder = vqgan.decoder
 
         for module in [self.codebook, self.post_quant_conv, self.decoder]:
+            module.eval()
             for param in module.parameters():
                 param.requires_grad = False
 

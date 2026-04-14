@@ -1,8 +1,12 @@
+import multiprocessing
+
 import lightning as L
 import torch
 from safetensors import safe_open
 from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import v2
+
+multiprocessing.set_start_method("fork")
 
 _latent_transforms = v2.Compose([v2.RandomHorizontalFlip()])
 
