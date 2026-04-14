@@ -1,12 +1,8 @@
-import multiprocessing
-
 import lightning as L
 import torch
-from safetensors.torch import safe_open
+from safetensors import safe_open
 from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import v2
-
-multiprocessing.set_start_method("fork")
 
 _latent_transforms = v2.Compose([v2.RandomHorizontalFlip()])
 
@@ -16,10 +12,10 @@ class LatentDataset(Dataset):
         self.data = safe_open(path, framework="pt", device="cpu")
         self.num_samples = self.data.get_tensor("indices").shape[0]
 
-    def __getitem__(self, index) -> torch.Tensor:
+    def __getitem__(self, index) -> dict[str, torch.Tensor]:
         indices = self.data.get_slice("indices")[index]
         indices = _latent_transforms(indices)
-        return indices
+        return {"indices": indices}
 
     def __len__(self):
         return self.num_samples
