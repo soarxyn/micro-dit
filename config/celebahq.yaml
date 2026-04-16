@@ -1,0 +1,58 @@
+seed_everything: true
+
+model:
+  in_channels: 3       
+  image_size: 64        
+  patch_size: 2
+  num_layers: 12
+  d_model: 768
+  d_time: 256
+  num_heads: 12
+  d_head: 64
+  d_ff: 3072
+  ffn_type: swiglu
+  vqgan_ckpt: ${ckpts}/vqgan.ckpt
+  latent_scaling: 1.0754
+  timesteps: 1000
+  scheduler: cosine
+  lr: 1.0e-4
+
+data:
+  class_path: micro_dit.data.LatentDataModule
+  init_args:
+    path: ${data}/train_indices.safetensors
+    batch_size: 128
+    num_workers: 4
+    pin_memory: true
+    drop_last: true
+
+trainer:
+  accelerator: gpu
+  devices: 1
+  max_steps: 500000
+  precision: bf16-mixed
+  log_every_n_steps: 50
+  logger:
+    class_path: lightning.pytorch.loggers.WandbLogger
+    init_args:
+      project: micro-dit
+      log_model: false
+  callbacks:
+    - class_path: micro_dit.callbacks.SampleCallback
+      init_args:
+        every_n_steps: 1000
+        num_samples: 8
+    - class_path: micro_dit.callbacks.EMAWeightAveraging
+      init_args:
+        decay: 0.9999
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        dirpath: results
+        every_n_train_steps: 5000
+        save_last: true
+    - class_path: lightning.pytorch.callbacks.RichModelSummary
+      init_args:
+        max_depth: -1
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+      init_args:
+        logging_interval: step
