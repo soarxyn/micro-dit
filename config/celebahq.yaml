@@ -11,7 +11,7 @@ model:
   d_head: 64
   d_ff: 3072
   ffn_type: swiglu
-  vqgan_ckpt: ${ckpts}/vqgan.ckpt
+  vqgan_ckpt: weights/vqgan.ckpt
   latent_scaling: 1.0754
   timesteps: 1000
   scheduler: cosine
@@ -20,8 +20,8 @@ model:
 data:
   class_path: micro_dit.data.LatentDataModule
   init_args:
-    path: ${data}/train_indices.safetensors
-    batch_size: 128
+    path: data/train_indices.safetensors
+    batch_size: 64
     num_workers: 4
     pin_memory: true
     drop_last: true

@@ -36,17 +36,19 @@ class LitDiT(L.LightningModule):
 
         self.save_hyperparameters(ignore=["model"])
 
-        self.model = DiTModel(
-            in_channels,
-            image_size,
-            patch_size,
-            num_layers,
-            d_model,
-            d_time,
-            num_heads,
-            d_head,
-            d_ff,
-            ffn_type,
+        self.model = torch.compile(
+            DiTModel(
+                in_channels,
+                image_size,
+                patch_size,
+                num_layers,
+                d_model,
+                d_time,
+                num_heads,
+                d_head,
+                d_ff,
+                ffn_type,
+            )
         )
 
         vqgan = VQGAN.load_from_checkpoint(vqgan_ckpt, map_location="cpu", strict=False)
