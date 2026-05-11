@@ -92,8 +92,8 @@ class DiTBlock(nn.Module):
     def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         g1, b1, a1, g2, b2, a2 = rearrange(self.adaln_mlp(t), "b (r d) -> r b 1 d", r=6)
 
-        x = x + a1 * self.attention(g1 * self.norm1(x) + b1)
-        x = x + a2 * self.ffn(g2 * self.norm2(x) + b2)
+        x = x + a1 * self.attention((1 + g1) * self.norm1(x) + b1)
+        x = x + a2 * self.ffn((1 + g2) * self.norm2(x) + b2)
 
         return x
 
@@ -112,7 +112,7 @@ class FinalHead(nn.Module):
 
     def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         scale, shift = rearrange(self.adaln_mlp(t), "b (r d) -> r b 1 d", r=2)
-        x = self.out_proj(scale * self.norm(x) + shift)
+        x = self.out_proj((1 + scale) * self.norm(x) + shift)
 
         return x
 
